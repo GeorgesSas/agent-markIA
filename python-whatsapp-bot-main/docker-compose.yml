@@ -1,0 +1,70 @@
+# docker-compose.yml - Configuration complète de Mark.AI
+
+version: '3.8'
+
+services:
+  mark-ai-bot:
+    build: .
+    container_name: mark-ai-production
+    ports:
+      - "5000:5000"  # Port accessible depuis l'extérieur
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Persister les données (threads, utilisateurs, etc.)
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Garder le .env à jour
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mark-ai-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Service optionnel : Monitoring
+  mark-ai-monitor:
+    image: prom/prometheus:latest
+    container_name: mark-ai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - mark-ai-network
+    profiles:
+      - monitoring
+
+  # Service optionnel : Base de données Redis pour cache
+  redis:
+    image: redis:7-alpine
+    container_name: mark-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mark-ai-network
+    profiles:
+      - cache
+
+networks:
+  mark-ai-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+
+# =====================================
+# Scripts utiles
+# =====================================
